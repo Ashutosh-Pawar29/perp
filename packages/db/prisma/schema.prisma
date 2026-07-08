@@ -1,0 +1,85 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+model Users {
+  id              String @id @default(uuid())
+  username        String
+  password        String
+  orders          Orders[]
+  makerFills      Fill[] @relation("makerfills")
+  takerFills      Fill[] @relation("takerfills")
+}
+
+model Market {
+  id      String   @id   @default(uuid())
+  slug    String
+
+}
+
+model Orders {
+  id              String   @id   @default(uuid())
+  userid          String
+  marketid        String
+  orderType       Ordertype 
+  side            Side 
+  price           String
+  slippage        String?
+  qty             String
+  initialMargin   String 
+  filledQty       String
+  status          Status
+  CreatedAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt()
+
+
+  users           Users @relation(fields: [userid],references: [id])
+  makerFills      Fill[] @relation("makerorderfills")
+  takerFills      Fill[] @relation("takerorderfills")
+}
+
+model Fill {
+  id      String   @id   @default(uuid())
+  makerId   String
+  takerId   String
+  qty       String
+  price     String
+  makerOrderId  String
+  takerOrderId  String
+  marketId      String
+  createdAt     DateTime @default(now())
+
+  makerUserId   Users @relation("makerfills",fields: [makerId],references: [id])
+  takerUserId   Users @relation("takerfills",fields: [takerId],references: [id])
+  makerorderId  Orders @relation("makerorderfills",fields: [makerOrderId],references: [id])
+  takerorderId  Orders @relation("takerorderfills",fields: [takerOrderId],references: [id])
+
+}
+
+enum Status {
+  open
+  filled
+  cancelled 
+  partiallyFilled
+}
+
+enum Ordertype {
+  Market
+  Limit
+}
+
+enum Side{
+  Ask
+  Bid
+}
