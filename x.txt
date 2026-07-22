@@ -1,2 +1,0 @@
-1. loopingfunction is not returning anything need to figure it out
-2.  

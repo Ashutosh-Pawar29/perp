@@ -8,9 +8,9 @@ await client.connect()
 
 const publisher = createClient();
 await publisher.connect();
-// client.xGroupCreate("engine", "engine", "$", {
-//     MKSTREAM: true
-// });
+client.xGroupCreate("engine", "engine", "$", {
+    MKSTREAM: true
+});
 
 interface Users {
     userId: string,
@@ -20,19 +20,7 @@ interface Users {
     // same for fills and users 
 }
 
-const positions: Users[] = [{
-    userId: "1",
-    positions: [
-        { market: "SOL", type: "LONG", qty: 10, margin: 500, liquidationPrice: 80, averagePrice: 90 },
-        { market: "ETH", type: "SHORT", qty: 1, margin: 500, liquidationPrice: 2000, averagePrice: 1900 }
-    ]
-}, {
-    userId: "2",
-    positions: [
-        { market: "SOL", type: "SHORT", qty: 10, margin: 1000, liquidationPrice: 80, pnL: 200, averagePrice: 90 },
-        { market: "ETH", type: "LONG", qty: 1, margin: 1000, liquidationPrice: 2000, pnL: -100, averagePrice: 1900 }
-    ],
-}];
+
 
 type Bid = {
     availableQty: number,
@@ -56,6 +44,19 @@ bids: {string: {
 
 type Orderbooks = Record<string, Orderbook>
 const balances: Map<string, { available: string, locked: string }> = new Map();
+const positions: Users[] = [{
+    userId: "1",
+    positions: [
+        { market: "SOL", type: "LONG", qty: 10, margin: 500, liquidationPrice: 80, averagePrice: 90 },
+        { market: "ETH", type: "SHORT", qty: 1, margin: 500, liquidationPrice: 2000, averagePrice: 1900 }
+    ]
+}, {
+    userId: "2",
+    positions: [
+        { market: "SOL", type: "SHORT", qty: 10, margin: 1000, liquidationPrice: 80, pnL: 200, averagePrice: 90 },
+        { market: "ETH", type: "LONG", qty: 1, margin: 1000, liquidationPrice: 2000, pnL: -100, averagePrice: 1900 }
+    ],
+}];
 const orderbooks: Orderbooks = {
     SOL: { bids: {}, asks: {}, lastTradedPrice: 90, indexPrice: 90.01 },
     ETH: { bids: {}, asks: {}, lastTradedPrice: 1900, indexPrice: 1899.9 }
@@ -167,7 +168,7 @@ async function matching() {
                                 balance.locked = String(Number(balance.locked) + Number(equity))
                                 balances.set(id, balance)
                             }
-                            
+
                             const filledorderdetails = matchingengine(market, type, qty, price, equity, message.userId, orderid) // send levrage 
                             if (filledorderdetails.status) {
                                 await publisher.xAdd("to-backend", "*", {
@@ -201,35 +202,116 @@ async function matching() {
             console.log("------------------------------------")
         }
 
-        else if (message.messageType == 'delete-order'){
+        else if (message.messageType == 'delete-order') {
             let body = JSON.parse(message.body)
-            const { price,qty, type, market, id, orderid } = body
-            if(type == "LONG"){
+            const { price, qty, type, market, id, orderid } = body
+            let updates = []
+            let orderDeleted = false
+            if (type == "LONG") {
                 let openorders = orderbooks[market]?.bids[price]?.openOrders
-                if(!openorders ) continue
-                for(const order of openorders) {
-                    if(order.orderId == orderid){
-                        if(order.qty-order.filledQty == qty){
-                            //@ts-ignore
-                            orderbooks[market]?.bids[price]?.availableQty -= qty
-                            const idx = openorders.indexOf(order)
-                            openorders.splice(idx,1)
+                if (!openorders) continue
+                for (const order of openorders) {
+                    if (order.orderId == orderid) {
+                        let qty = order.qty - order.filledQty
+                        const bid = orderbooks[market]?.bids[price]
+                        if (bid) {
+                            bid.availableQty -= qty
                         }
-                        else{
-                            //@ts-ignore
-                            orderbooks[market]?.bids[price]?.availableQty -= qty
-                            order.qty -= qty
-                        }
+                        const idx = openorders.indexOf(order)
+                        openorders.splice(idx, 1)
+                        orderDeleted = true
+                        updates.push(order)
                         break
                     }
                 }
 
             }
-            else{
-
+            else {
+                let openorders = orderbooks[market]?.asks[price]?.openOrders
+                if (!openorders) continue
+                for (const order of openorders) {
+                    if (order.orderId == orderid) {
+                        let qty = order.qty - order.filledQty
+                        const ask = orderbooks[market]?.asks[price]
+                        if (ask) {
+                            ask.availableQty -= qty
+                        }
+                        const idx = openorders.indexOf(order)
+                        openorders.splice(idx, 1)
+                        orderDeleted = true
+                        updates.push(order)
+                        break
+                    }
+                }
+            }
+            if (orderDeleted) {
+                await publisher.xAdd("to-backend", "*", {
+                    loopBackId: message.loopBackId,
+                    status: String(true),
+                    databaseQuery: "update order",
+                    update: JSON.stringify({ updates })
+                })
+            }
+            else {
+                await publisher.xAdd("to-backend", "*", {
+                    loopBackId: message.loopBackId,
+                    status: String(false)
+                })
             }
         }
     }
+}
+
+
+
+function addOrderToOrderbook(
+    obj: Orderbook,
+    side: "LONG" | "SHORT",
+    price: number,
+    userId: string,
+    originalQty: number,
+    remainingQty: number,
+    filledQty: number,
+    orderId: string,
+    leverage: string
+): { orderOnOrderbook: boolean; fullyfilled: boolean } {
+    const book = side === "LONG" ? obj.bids : obj.asks;
+    let orderOnOrderbook = false;
+    for (const existing_order in book) {
+        if (!book[existing_order]) continue;
+        if (Number(existing_order) == price) {
+            book[existing_order].availableQty += remainingQty;
+            const createdAt = new Date();
+            book[existing_order].openOrders = [
+                ...book[existing_order].openOrders,
+                { userId, qty: originalQty, filledQty, orderId, createdAt, leverage }
+            ];
+            orderOnOrderbook = true;
+            break;
+        }
+    }
+    if (!orderOnOrderbook) {
+        book[String(price)] = {
+            availableQty: remainingQty,
+            openOrders: [{ userId, qty: originalQty, filledQty, orderId, createdAt: new Date(), leverage }]
+        };
+        // Sort bids descending, asks ascending
+        if (side === "LONG") {
+            obj.bids = Object.fromEntries(
+                Object.entries(obj.bids).sort(
+                    ([priceA], [priceB]) => Number(priceB) - Number(priceA)
+                )
+            );
+        } else {
+            obj.asks = Object.fromEntries(
+                Object.entries(obj.asks).sort(
+                    ([priceA], [priceB]) => Number(priceA) - Number(priceB)
+                )
+            );
+        }
+        orderOnOrderbook = true;
+    }
+    return { orderOnOrderbook, fullyfilled: false };
 }
 
 
@@ -258,31 +340,9 @@ function matchingengine(market: string, Takertype: string, Takerqty: number, Tak
                         fullyfilled = true
                         break
                     }
-                    let orderOnOrderbook = false
-                    for (const existing_order in obj.bids) {
-                        if (!obj.bids[existing_order]) continue
-                        if (Number(existing_order) == Takerprice) {
-                            obj.bids[existing_order].availableQty += Taker.engargs.Takerqty
-                            const createdAt = new Date()
-                            obj.bids[existing_order].openOrders = [...obj.bids[existing_order].openOrders, { "userId": Takeruserid, "qty": Taker.engargs.Takerqty, "filledQty": Taker.engargs.takerFilledQty, "orderId": Takerorderid, createdAt, leverage: leverage.toString() }]
-                            Taker.engargs.Takerqty = 0
-                            orderOnOrderbook = true
-                            fullyfilled = false
-                            break
-                        }
-                    }
-                    if (!orderOnOrderbook) {
-                        if (!obj.bids) continue
-                        obj.bids[String(Takerprice)] = { availableQty: Taker.engargs.Takerqty, openOrders: [{ "userId": Takeruserid, qty: Taker.engargs.Takerqty, "filledQty": Taker.engargs.takerFilledQty, "orderId": Takerorderid, "createdAt": new Date(), leverage: leverage.toString() }] }
-                        orderOnOrderbook = true
-                        fullyfilled = false
-                        Taker.engargs.Takerqty = 0
-                        obj.bids = Object.fromEntries(
-                            Object.entries(obj.bids).sort(
-                                ([priceA], [priceB]) => Number(priceB) - Number(priceA)
-                            )
-                        );
-                    }
+                    const res = addOrderToOrderbook(obj, "LONG", Takerprice, Takeruserid, Takerqty, Taker.engargs.Takerqty, Taker.engargs.takerFilledQty, Takerorderid, leverage.toString())
+                    fullyfilled = res.fullyfilled
+                    Taker.engargs.Takerqty = 0
                 }
                 for (const prices in obj.asks) {
                     if (Taker.engargs.Takerqty <= 0) {
@@ -314,35 +374,16 @@ function matchingengine(market: string, Takertype: string, Takerqty: number, Tak
                             fullyfilled = true
                             break
                         }
-                        let orderOnOrderbook = false
-                        for (const existing_order in obj.bids) {
-                            if (!obj.bids[existing_order]) continue
-                            if (Number(existing_order) == Takerprice) {
-                                obj.bids[existing_order].availableQty += Taker.engargs.Takerqty
-                                const createdAt = new Date()
-                                obj.bids[existing_order].openOrders = [...obj.bids[existing_order].openOrders, { "userId": Takeruserid, "qty": Taker.engargs.Takerqty, "filledQty": Taker.engargs.takerFilledQty, "orderId": Takerorderid, createdAt, leverage: leverage.toString() }]
-                                Taker.engargs.Takerqty = 0
-                                orderOnOrderbook = true
-                                fullyfilled = false
-                                break
-                            }
-                        }
-                        if (!orderOnOrderbook) {
-                            if (!obj.bids) continue
-                            obj.bids[String(Takerprice)] = { availableQty: Taker.engargs.Takerqty, openOrders: [{ "userId": Takeruserid, qty: Taker.engargs.Takerqty, "filledQty": Taker.engargs.takerFilledQty, "orderId": Takerorderid, "createdAt": new Date(), leverage: leverage.toString() }] }
-                            orderOnOrderbook = true
-                            fullyfilled = false
-                            Taker.engargs.Takerqty = 0
-                            obj.bids = Object.fromEntries(
-                                Object.entries(obj.bids).sort(
-                                    ([priceA], [priceB]) => Number(priceB) - Number(priceA)
-                                )
-                            );
-                            break
-                        }
-                        // order will be added to order book may be partial or may be full
-                        // and then break
+                        const res = addOrderToOrderbook(obj, "LONG", Takerprice, Takeruserid, Takerqty, Taker.engargs.Takerqty, Taker.engargs.takerFilledQty, Takerorderid, leverage.toString())
+                        fullyfilled = res.fullyfilled
+                        Taker.engargs.Takerqty = 0
+                        break
                     }
+                }
+                if (Taker.engargs.Takerqty) {
+                    const res = addOrderToOrderbook(obj, "LONG", Takerprice, Takeruserid, Takerqty, Taker.engargs.Takerqty, Taker.engargs.takerFilledQty, Takerorderid, leverage.toString())
+                    fullyfilled = res.fullyfilled
+                    Taker.engargs.Takerqty = 0
                 }
             }
             else if (Takertype === "SHORT") {
@@ -351,31 +392,9 @@ function matchingengine(market: string, Takertype: string, Takerqty: number, Tak
                         fullyfilled = true
                         break
                     }
-                    let orderOnOrderbook = false
-                    for (const existing_order in obj.asks) {
-                        if (!obj.asks[existing_order]) continue
-                        if (Number(existing_order) == Takerprice) {
-                            obj.asks[existing_order].availableQty += Taker.engargs.Takerqty
-                            const createdAt = new Date()
-                            obj.asks[existing_order].openOrders = [...obj.asks[existing_order].openOrders, { "userId": Takeruserid, "qty": Taker.engargs.Takerqty, "filledQty": Taker.engargs.takerFilledQty, "orderId": Takerorderid, createdAt, leverage: leverage.toString() }]
-                            Taker.engargs.Takerqty = 0
-                            orderOnOrderbook = true
-                            fullyfilled = false
-                            break
-                        }
-                    }
-                    if (!orderOnOrderbook) {
-                        if (!obj.asks) continue
-                        obj.asks[String(Takerprice)] = { availableQty: Taker.engargs.Takerqty, openOrders: [{ "userId": Takeruserid, qty: Taker.engargs.Takerqty, "filledQty": Taker.engargs.takerFilledQty, "orderId": Takerorderid, "createdAt": new Date(), leverage: leverage.toString() }] }
-                        orderOnOrderbook = true
-                        fullyfilled = false
-                        Taker.engargs.Takerqty = 0
-                        obj.asks = Object.fromEntries(
-                            Object.entries(obj.asks).sort(
-                                ([priceA], [priceB]) => Number(priceA) - Number(priceB)
-                            )
-                        );
-                    }
+                    const res = addOrderToOrderbook(obj, "SHORT", Takerprice, Takeruserid, Takerqty, Taker.engargs.Takerqty, Taker.engargs.takerFilledQty, Takerorderid, leverage.toString())
+                    fullyfilled = res.fullyfilled
+                    Taker.engargs.Takerqty = 0
                 }
                 for (const prices in obj.bids) {
                     if (Taker.engargs.Takerqty <= 0) {
@@ -405,39 +424,17 @@ function matchingengine(market: string, Takertype: string, Takerqty: number, Tak
                             fullyfilled = true
                             break
                         }
-                        let orderOnOrderbook = false
-                        for (const existing_order in obj.asks) {
-                            if (!obj.asks[existing_order]) continue
-                            if (Number(existing_order) == Takerprice) {
-                                obj.asks[existing_order].availableQty += Taker.engargs.Takerqty
-                                const createdAt = new Date()
-                                obj.asks[existing_order].openOrders = [...obj.asks[existing_order].openOrders, { "userId": Takeruserid, "qty": Taker.engargs.Takerqty, "filledQty": Taker.engargs.takerFilledQty, "orderId": Takerorderid, createdAt, leverage: leverage.toString() }]
-                                Taker.engargs.Takerqty = 0
-                                orderOnOrderbook = true
-                                fullyfilled = false
-                                break
-                            }
-                        }
-                        if (!orderOnOrderbook) {
-                            if (!obj.asks) continue
-                            obj.asks[String(Takerprice)] = { availableQty: Taker.engargs.Takerqty, openOrders: [{ "userId": Takeruserid, qty: Taker.engargs.Takerqty, "filledQty": Taker.engargs.takerFilledQty, "orderId": Takerorderid, "createdAt": new Date(), leverage: leverage.toString() }] }
-                            orderOnOrderbook = true
-                            fullyfilled = false
-                            Taker.engargs.Takerqty = 0
-                            obj.asks = Object.fromEntries(
-                                Object.entries(obj.asks).sort(
-                                    ([priceA], [priceB]) => Number(priceA) - Number(priceB)
-                                )
-                            );
-                            break
-                        }
-                        else {
-                            break
-                        }
-                        // order will be added to order book may be partial or may be full
-                        // and then break
+                        const res = addOrderToOrderbook(obj, "SHORT", Takerprice, Takeruserid, Takerqty, Taker.engargs.Takerqty, Taker.engargs.takerFilledQty, Takerorderid, leverage.toString())
+                        fullyfilled = res.fullyfilled
+                        Taker.engargs.Takerqty = 0
+                        break
                     }
 
+                }
+                if (Taker.engargs.Takerqty) {
+                    const res = addOrderToOrderbook(obj, "SHORT", Takerprice, Takeruserid, Takerqty, Taker.engargs.Takerqty, Taker.engargs.takerFilledQty, Takerorderid, leverage.toString())
+                    fullyfilled = res.fullyfilled
+                    Taker.engargs.Takerqty = 0
                 }
             }
             let percent = Taker.engargs.takerFilledQty / Takerqty

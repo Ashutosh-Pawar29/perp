@@ -2,7 +2,6 @@ import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import bycrypt from "bcrypt";
 import { prisma } from "db";
-import z, { string } from "zod";
 import { onrampschema, orderschema, signinschema, signupschema } from "zodvalidation";
 import { loopfunction } from "./loopingfunction";
 import type { toEngine } from "commons";
@@ -71,7 +70,9 @@ app.post("/signup", async (req, res) => {
             }
         }
     }
-    catch (error) { console.error }
+    catch (error) { console.error
+        res.json({error})
+     }
 })
 
 
@@ -163,5 +164,21 @@ app.post("/order", authenticateUser, async (req: Request, res: Response) => {
     }
 })
 
+
+app.delete('/order',authenticateUser,async (req,res)=>{
+    const body = req.body
+    const order = await prisma.orders.findFirst({where:{id:body.orderid}})
+    if(!order){
+        res.json({msg:"no order exist please recheck"})
+        return
+    }
+    const dataToEngine = { price:order.price,qty:order.qty, type:order.orderType, market:order.marketid, id:order.id, orderid:order.id }
+    const data:toEngine = {
+        messageType:"delete-order",
+        userId:body.id,
+        body:JSON.stringify(dataToEngine)
+    }
+    const engineresponse = await loopfunction(data)
+})
 
 app.listen(3003)
