@@ -8,9 +8,10 @@ await client.connect()
 
 const publisher = createClient();
 await publisher.connect();
-// client.xGroupCreate("engine", "engine", "$", {
-//     MKSTREAM: true
-// });
+const ENGINE_CONSUMER_GROUP = "backend-" + Math.random();
+await client.xGroupCreate("engine", ENGINE_CONSUMER_GROUP, "$", {
+    MKSTREAM: true
+});
 
 
 type Bid = {
