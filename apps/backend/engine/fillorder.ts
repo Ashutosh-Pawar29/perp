@@ -27,11 +27,16 @@ export function handlefillorder(orderbookentry: Bid, users: Users[], Taker: matc
             orderbookentry.availableQty -= makersAskedqty
             Takerstatus.Takerqty -= makersAskedqty
             percent = (makersfilledqty / order.qty)
-            let x:engineorder = {id:makerorderid,filledQty:String(makersfilledqty)}
+            let x: engineorder = { id: makerorderid, filledQty: String(makersfilledqty) }
             let otherargs: Handleusersfilledqty = { userId: makeruserid, orderId: makerorderid, filledqty: makersfilledqty, fullyfilled: deletemakerorder, percent: percent }
-            ordersUpdate = [...ordersUpdate,x]
-            let newargs = {...args,leverage:order.leverage}
-            handleusersfilledqty(users, otherargs,balances,newargs)
+            ordersUpdate = [...ordersUpdate, x]
+            let newargs = { ...args, leverage: order.leverage }
+            handleusersfilledqty(users, otherargs, balances, newargs)
+
+            let takerLeverage = (Taker.Takerqty * Taker.Takerprice) / (Taker.Takerequity || 1)
+            let takerOtherArgs: Handleusersfilledqty = { userId: Taker.Takeruserid, orderId: Taker.Takerorderid, filledqty: makersfilledqty, fullyfilled: Takerstatus.Takerqty === 0, percent: percent }
+            let takerArgs = { price: args.price, ordertype: Taker.Takertype, market: args.market, leverage: takerLeverage.toString() }
+            handleusersfilledqty(users, takerOtherArgs, balances, takerArgs)
         }
         else {
             makersfilledqty = Taker.Takerqty
@@ -45,6 +50,11 @@ export function handlefillorder(orderbookentry: Bid, users: Users[], Taker: matc
             ordersUpdate = [...ordersUpdate,x]
             let newargs = {...args,leverage:order.leverage}
             handleusersfilledqty(users, otherargs,balances,newargs)
+
+            let takerLeverage = (Taker.Takerqty * Taker.Takerprice) / (Taker.Takerequity || 1)
+            let takerOtherArgs: Handleusersfilledqty = { userId: Taker.Takeruserid, orderId: Taker.Takerorderid, filledqty: makersfilledqty, fullyfilled: Takerstatus.Takerqty === 0, percent: percent }
+            let takerArgs = { price: args.price, ordertype: Taker.Takertype, market: args.market, leverage: takerLeverage.toString() }
+            handleusersfilledqty(users, takerOtherArgs, balances, takerArgs)
             break
             // partial maker order will be filled and full takers order will be filled 
             // and you need to break the loop when takerstatus.qty == 0

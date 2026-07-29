@@ -11,7 +11,6 @@ const app = express();
 app.use(express.json());
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const hashpass = process.env.hashpass
 
 const authenticateUser = (req: Request, res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
@@ -70,9 +69,10 @@ app.post("/signup", async (req, res) => {
             }
         }
     }
-    catch (error) { console.error
-        res.json({error})
-     }
+    catch (error) {
+        console.error
+        res.json({ error })
+    }
 })
 
 
@@ -133,7 +133,7 @@ app.post("/onramp", authenticateUser, async (req, res) => {
     }
 })
 
-let orderid = 5
+
 
 app.post("/order", authenticateUser, async (req: Request, res: Response) => {
     let body = req.body
@@ -146,17 +146,35 @@ app.post("/order", authenticateUser, async (req: Request, res: Response) => {
             res.json({ "msg": "equity should be greater than zero" })
             return
         }
-        orderid++
-        body = {...body,orderid}
+        
+        let odr = await prisma.orders.create({
+            data: {
+                userid: body.id,
+                marketid: body.market,
+                orderType: body.orderType,
+                side:body.type,
+                price:body.price.toString(),
+                slippage:"0",
+                qty:body.qty.toString(),
+                initialMargin:body.equity.toString(),
+                filledQty:"0",
+                status:"open"
+            }
+        })
+        console.log(odr)
+        let orderid = odr.id
+        body = { ...body, orderid }
         const data: toEngine = {
             messageType: "order",
             userId: body.id.toString(),
             body: JSON.stringify(body)
         }
-        const engineresponse = await loopfunction(data)
+        const engineresponse:any = await loopfunction(data)
         console.log(engineresponse)
         if (engineresponse.status == "true") {
-            return res.json({ message: " " })
+            return res.json({ message: " Order executed successfully ",
+                filled_qty:engineresponse.response
+             })
         }
         else {
             return res.json({ message: "sorry something went wrong " })
@@ -165,20 +183,129 @@ app.post("/order", authenticateUser, async (req: Request, res: Response) => {
 })
 
 
-app.delete('/order',authenticateUser,async (req,res)=>{
+app.delete('/order', authenticateUser, async (req, res) => {
     const body = req.body
-    const order = await prisma.orders.findFirst({where:{id:body.orderid}})
-    if(!order){
-        res.json({msg:"no order exist please recheck"})
+    const order = await prisma.orders.findFirst({ where: { id: body.orderid } })
+    if (!order) {
+        res.json({ msg: "no order exist please recheck" })
         return
     }
-    const dataToEngine = { price:order.price,qty:order.qty, type:order.orderType, market:order.marketid, id:order.id, orderid:order.id }
-    const data:toEngine = {
-        messageType:"delete-order",
-        userId:body.id,
-        body:JSON.stringify(dataToEngine)
+    const dataToEngine = { price: order.price, qty: order.qty, type: order.orderType, market: order.marketid, id: order.id, orderid: order.id }
+    const data: toEngine = {
+        messageType: "delete-order",
+        userId: body.id,
+        body: JSON.stringify(dataToEngine)
     }
     const engineresponse = await loopfunction(data)
 })
 
-app.listen(3003)
+app.get("/equity/available", authenticateUser, async (req: Request, res: Response) => {
+    try {
+        const userId = req.body.id;
+        const data: toEngine = {
+            messageType: "get-equity",
+            userId: userId.toString(),
+            body: ""
+        };
+        const engineresponse: any = await loopfunction(data);
+        if (engineresponse.status === "true" && engineresponse.response) {
+            const balance = JSON.parse(engineresponse.response);
+            return res.json({ available: balance.available, locked: balance.locked });
+        } else {
+            return res.status(404).json({ message: "Equity data not found" });
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+app.get("/positions/open/:marketId", authenticateUser, async (req: Request, res: Response) => {
+    try {
+        const userId = req.body.id;
+        const marketId = req.params.marketId as string;
+        const data: toEngine = {
+            messageType: "get-positions",
+            userId: userId.toString(),
+            body: JSON.stringify({ market: marketId })
+        };
+        const engineresponse: any = await loopfunction(data);
+        if (engineresponse.status === "true" && engineresponse.response) {
+            const positions = JSON.parse(engineresponse.response);
+            return res.json({ positions });
+        } else {
+            return res.json({ positions: [] });
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+app.get("/positions/closed/:marketId", authenticateUser, async (req: Request, res: Response) => {
+    try {
+        const userId = req.body.id;
+        const marketId = req.params.marketId as string;
+        const closedOrders = await prisma.orders.findMany({
+            where: {
+                userid: userId.toString(),
+                marketid: marketId,
+                status: { in: ["filled", "cancelled"] }
+            },
+            orderBy: { updatedAt: "desc" }
+        });
+        const fills = await prisma.fill.findMany({
+            where: {
+                marketId: marketId,
+                OR: [
+                    { makerId: userId.toString() },
+                    { takerId: userId.toString() }
+                ]
+            },
+            orderBy: { createdAt: "desc" }
+        });
+        return res.json({ closedOrders, fills });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+app.get("/orders/open/:marketId", authenticateUser, async (req: Request, res: Response) => {
+    try {
+        const userId = req.body.id;
+        const marketId = req.params.marketId as string;
+        const openOrders = await prisma.orders.findMany({
+            where: {
+                userid: userId.toString(),
+                marketid: marketId,
+                status: { in: ["open", "partiallyFilled"] }
+            },
+            orderBy: { CreatedAt: "desc" }
+        });
+        return res.json({ orders: openOrders });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+app.get("/orders/:marketId", authenticateUser, async (req: Request, res: Response) => {
+    try {
+        const userId = req.body.id;
+        const marketId = req.params.marketId as string;
+        const allOrders = await prisma.orders.findMany({
+            where: {
+                userid: userId.toString(),
+                marketid: marketId
+            },
+            orderBy: { CreatedAt: "desc" }
+        });
+        return res.json({ orders: allOrders });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+app.listen(3003)

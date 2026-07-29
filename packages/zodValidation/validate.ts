@@ -1,5 +1,4 @@
-import {minLength, z} from "zod";
-import type { id } from "zod/v4/locales";
+import { z} from "zod";
 
 const signupschema = z.object({
     username:z.string().min(6),

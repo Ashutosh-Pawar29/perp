@@ -80,6 +80,6 @@ enum Ordertype {
 }
 
 enum Side{
-  Ask
-  Bid
+  SHORT
+  LONG
 }

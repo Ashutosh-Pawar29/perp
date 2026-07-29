@@ -1,11 +1,15 @@
 export type toEngine = {
     messageType: string,
-        userId: string,
-        balance : string
+    userId: string,
+    balance: string
 } | {
     messageType: string,
-        userId: string,
-        body : string
+    userId: string,
+    body: string
+} | {
+    messageType?: string,
+    market: string,
+    price: string
 }
 
 

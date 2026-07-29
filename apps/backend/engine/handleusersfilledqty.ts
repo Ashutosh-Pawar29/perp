@@ -11,12 +11,26 @@ function calculatereleazedpnl(exitPrice: number, holdingPrice: number, filledQty
 }
 
 
-export function handleusersfilledqty(users: Users[], otherargs: Handleusersfilledqty,balances:Map<string, { available: string, locked: string }> ,args:{price: number,ordertype: string,market: string,leverage:string}) {
+export function calculateLiquidationPrice(side: string, averagePrice: number, margin: number, qty: number): number {
+    if (!averagePrice || averagePrice <= 0 || !qty || qty <= 0 || margin < 0) return 0;
+    const marginPerUnit = margin / qty;
+    if (side === "LONG") {
+        return Math.max(0, averagePrice - marginPerUnit);
+    } else {
+        return averagePrice + marginPerUnit;
+    }
+}
+
+export function handleusersfilledqty(users: Users[], otherargs: Handleusersfilledqty, balances: Map<string, { available: string, locked: string }>, args: { price: number, ordertype: string, market: string, leverage: string }) {
     let ordertype = args.ordertype
     let price = args.price
     let market = args.market
     let balance = balances.get(otherargs.userId)
-    let marginchange = (price*otherargs.filledqty)/Number(args.leverage)
+    let leverageNum = Number(args.leverage)
+    if (!leverageNum || isNaN(leverageNum) || !isFinite(leverageNum) || leverageNum <= 0) {
+        leverageNum = 1
+    }
+    let marginchange = (price * otherargs.filledqty) / leverageNum
     // update users orders
     // will handle it when push to db
     //update users positions
@@ -31,29 +45,30 @@ export function handleusersfilledqty(users: Users[], otherargs: Handleusersfille
                     let total_qty = position.qty + otherargs.filledqty
                     position.averagePrice = total_value / total_qty
                     position.qty = total_qty
-                    position.margin += marginchange// need to  handle this and aslo consider levrage
+                    position.margin += marginchange// need to handle this and also consider leverage
+                    position.liquidationPrice = calculateLiquidationPrice(position.type, position.averagePrice, position.margin, position.qty)
                     positionhandled = true
                     break
                 }
                 // if user holds same market position but it is opposite then there are three cases and need to handle them(1. user trying to reduce holdings ,2. user trying to closing positions, 3.user is trying to close all holdings and trying to sit on other side )
                 else if (position.market === market && balance) {
                     let total_qty = position.qty - otherargs.filledqty
-                    if (total_qty > 0 ) {
+                    if (total_qty > 0) {
                         const realizedPnl = calculatereleazedpnl(price, position.averagePrice, otherargs.filledqty, position.type)
                         position.qty = total_qty
                         position.margin -= marginchange
-                        balance.locked = String(Number(balance.locked)-marginchange)
+                        balance.locked = String(Number(balance.locked) - marginchange)
                         balance.available = String(Number(balance.available) + marginchange + realizedPnl)
-                        balances.set(otherargs.userId,balance)
-                        // obj.poolfund -= (marginchange + realizedPnl)
+                        balances.set(otherargs.userId, balance)
+                        position.liquidationPrice = calculateLiquidationPrice(position.type, position.averagePrice, position.margin, position.qty)
                         positionhandled = true
                         break
                     }
                     else if (total_qty == 0) {
                         const realizedPnl = calculatereleazedpnl(price, position.averagePrice, otherargs.filledqty, position.type)
-                        balance.locked = String(Number(balance.locked)-marginchange)
+                        balance.locked = String(Number(balance.locked) - marginchange)
                         balance.available = String(Number(balance.available) + marginchange + realizedPnl)
-                        balances.set(otherargs.userId,balance)
+                        balances.set(otherargs.userId, balance)
                         // obj.poolfund -= (marginchange + realizedPnl)
                         let new_positions: { market: string; type: string; qty: number; margin: number; liquidationPrice: number; pnL?: number | undefined; averagePrice: number; }[] = []
                         for (const x of user.positions) {
@@ -69,12 +84,13 @@ export function handleusersfilledqty(users: Users[], otherargs: Handleusersfille
                     else {
                         if (!ordertype) continue
                         let new_qty = otherargs.filledqty - position.qty
-                        let new_margin = (price*new_qty)/Number(args.leverage)
-                        let new_position = { market: position.market, type: ordertype, qty: new_qty, margin: new_margin, liquidationPrice: 0, pnL: 0, averagePrice: price }
+                        let new_margin = (price * new_qty) / leverageNum
+                        let liqPrice = calculateLiquidationPrice(ordertype, price, new_margin, new_qty)
+                        let new_position = { market: position.market, type: ordertype, qty: new_qty, margin: new_margin, liquidationPrice: liqPrice, pnL: 0, averagePrice: price }
                         const realizedPnl = calculatereleazedpnl(price, position.averagePrice, position.qty, position.type)
-                        balance.locked = String(Number(balance.locked)-marginchange)
-                        balance.available = String(Number(balance.available)+marginchange + realizedPnl)
-                        balances.set(otherargs.userId,balance)
+                        balance.locked = String(Number(balance.locked) - marginchange)
+                        balance.available = String(Number(balance.available) + marginchange + realizedPnl)
+                        balances.set(otherargs.userId, balance)
                         // obj.poolfund -= (position.margin + realizedPnl)
                         let new_positions: { market: string; type: string; qty: number; margin: number; liquidationPrice: number; pnL?: number | undefined; averagePrice: number; }[] = []
                         for (const x of user.positions) {
@@ -95,12 +111,8 @@ export function handleusersfilledqty(users: Users[], otherargs: Handleusersfille
             if (!positionhandled) {
                 if (!market || !ordertype || !price) continue
                 let new_order_margin = marginchange
-                // for(const order of user.orders){
-                //     if(order.orderId==other_order.orderId){
-                //         new_order_margin = order.margin*percent
-                //     }
-                // }
-                let new_position = { market: market, type: ordertype, qty: otherargs.filledqty, margin: new_order_margin, liquidationPrice: 0, pnL: 0, averagePrice: price }
+                let liqPrice = calculateLiquidationPrice(ordertype, price, new_order_margin, otherargs.filledqty)
+                let new_position = { market: market, type: ordertype, qty: otherargs.filledqty, margin: new_order_margin, liquidationPrice: liqPrice, pnL: 0, averagePrice: price }
                 user.positions = [...user.positions, new_position]
             }
         }
