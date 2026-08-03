@@ -576,6 +576,6 @@ function liquidationChecks(market: string, price: number) {
 }
 
 
-liquidationChecks("btc", 7)
+// liquidationChecks("btc", 7)
 
 matching();

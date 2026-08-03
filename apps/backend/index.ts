@@ -1,4 +1,5 @@
 import express from "express";
+import { createServer } from "node:http";
 import type { Request, Response, NextFunction } from "express";
 import bycrypt from "bcrypt";
 import { prisma } from "db";
@@ -7,7 +8,8 @@ import { loopfunction } from "./loopingfunction";
 import type { toEngine } from "commons";
 
 const jwt = require('jsonwebtoken')
-const app = express();
+export const app = express();
+export const httpServer = createServer(app);
 app.use(express.json());
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -308,4 +310,9 @@ app.get("/orders/:marketId", authenticateUser, async (req: Request, res: Respons
     }
 });
 
-app.listen(3003)
+if (import.meta.main) {
+    const port = Number(process.env.PORT || 3003);
+    httpServer.listen(port, () => {
+        console.log(`Backend server running on http://localhost:${port}`);
+    });
+}
