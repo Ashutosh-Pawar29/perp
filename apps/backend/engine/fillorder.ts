@@ -1,9 +1,10 @@
 
-import type {  Bid, Users, Handleusersfilledqty, matchingengineargs, engineorder, retMatchingengine } from 'commons'
+import type { Bid, Users, Handleusersfilledqty, matchingengineargs, engineorder, retMatchingengine, FillRecord } from 'commons'
 import { handleusersfilledqty } from './handleusersfilledqty'
 
 export function handlefillorder(orderbookentry: Bid, users: Users[], Taker: matchingengineargs,balances:Map<string, { available: string, locked: string }> ,args:{price: number,ordertype: string,market: string;}): retMatchingengine {
     let ordersUpdate:engineorder[] = []
+    let fills: FillRecord[] = []
     //orderbook entry has a orders that can fill the taker order(can be full or partial)
     let Takerstatus = Taker
     for (const order of orderbookentry.openOrders) {
@@ -37,6 +38,16 @@ export function handlefillorder(orderbookentry: Bid, users: Users[], Taker: matc
             let takerOtherArgs: Handleusersfilledqty = { userId: Taker.Takeruserid, orderId: Taker.Takerorderid, filledqty: makersfilledqty, fullyfilled: Takerstatus.Takerqty === 0, percent: percent }
             let takerArgs = { price: args.price, ordertype: Taker.Takertype, market: args.market, leverage: takerLeverage.toString() }
             handleusersfilledqty(users, takerOtherArgs, balances, takerArgs)
+
+            fills.push({
+                makerId: makeruserid,
+                takerId: Taker.Takeruserid,
+                qty: String(makersfilledqty),
+                price: String(args.price),
+                makerOrderId: makerorderid,
+                takerOrderId: Taker.Takerorderid,
+                marketId: args.market
+            })
         }
         else {
             makersfilledqty = Taker.Takerqty
@@ -55,6 +66,16 @@ export function handlefillorder(orderbookentry: Bid, users: Users[], Taker: matc
             let takerOtherArgs: Handleusersfilledqty = { userId: Taker.Takeruserid, orderId: Taker.Takerorderid, filledqty: makersfilledqty, fullyfilled: Takerstatus.Takerqty === 0, percent: percent }
             let takerArgs = { price: args.price, ordertype: Taker.Takertype, market: args.market, leverage: takerLeverage.toString() }
             handleusersfilledqty(users, takerOtherArgs, balances, takerArgs)
+
+            fills.push({
+                makerId: makeruserid,
+                takerId: Taker.Takeruserid,
+                qty: String(makersfilledqty),
+                price: String(args.price),
+                makerOrderId: makerorderid,
+                takerOrderId: Taker.Takerorderid,
+                marketId: args.market
+            })
             break
             // partial maker order will be filled and full takers order will be filled 
             // and you need to break the loop when takerstatus.qty == 0
@@ -64,6 +85,6 @@ export function handlefillorder(orderbookentry: Bid, users: Users[], Taker: matc
             orderbookentry.openOrders.splice(idx, 1)
         }
     }
-    const res = {"engargs":Takerstatus,"ordersupdate":ordersUpdate}
+    const res: retMatchingengine = { engargs: Takerstatus, ordersupdate: ordersUpdate, fills }
     return res
 }

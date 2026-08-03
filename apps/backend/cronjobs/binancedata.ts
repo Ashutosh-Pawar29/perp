@@ -52,6 +52,18 @@ async function LiveDataFetch() {
             timestamp: data.E,
         });
 
+        // Publish live mark price ticker update to Redis Pub/Sub
+        const tickerPayload = JSON.stringify({
+            type: "ticker",
+            market: data.s,
+            price: Number(data.p),
+            timestamp: data.E || Date.now()
+        });
+        await client.publish(data.s, tickerPayload);
+        await client.publish(data.s.toLowerCase(), tickerPayload);
+        const baseAsset = data.s.replace(/USDT$/i, "").toUpperCase();
+        await client.publish(baseAsset, tickerPayload);
+
         if (data.E >= nextTimestamp) {
             console.clear();
             console.log("Current Prices\n");

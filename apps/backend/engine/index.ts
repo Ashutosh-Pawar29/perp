@@ -54,6 +54,17 @@ const orderbooks: Orderbooks = {
     ETH: { bids: {}, asks: {}, lastTradedPrice: 1900, indexPrice: 1899.9 }
 }
 
+function getOrderbookSnapshot(market: string) {
+    const ob = orderbooks[market];
+    if (!ob) return { market, bids: {}, asks: {}, lastTradedPrice: 0 };
+    return {
+        market,
+        bids: ob.bids,
+        asks: ob.asks,
+        lastTradedPrice: ob.lastTradedPrice
+    };
+}
+
 
 async function matching() {
     while (1) {
@@ -183,7 +194,7 @@ async function matching() {
                                     status: "true",
                                     response: `${filledorderdetails.updatedorders.at(-1)?.filledQty}`,
                                     databaseQuery: "update order",
-                                    databaseData: JSON.stringify({ orders: filledorderdetails.updatedorders })
+                                    databaseData: JSON.stringify({ orders: filledorderdetails.updatedorders, fills: filledorderdetails.fills, orderbook: getOrderbookSnapshot(market) })
                                 })
                             }
                             else {
@@ -264,6 +275,7 @@ async function matching() {
                     loopBackId: message.loopBackId,
                     status: String(true),
                     databaseQuery: "update order",
+                    databaseData: JSON.stringify({ updates, orderbook: getOrderbookSnapshot(market) }),
                     update: JSON.stringify({ updates })
                 })
             }
@@ -368,7 +380,8 @@ function matchingengine(market: string, Takertype: string, Takerqty: number, Tak
             let fullyfilled = true
             let Taker: retMatchingengine = {
                 engargs: { market: market, Takertype: Takertype, Takerqty: Takerqty, Takerprice: Takerprice, Takerequity: Takerequity, Takeruserid: Takeruserid, Takerorderid: Takerorderid, takerFilledQty: takerFilledQty },
-                ordersupdate: []
+                ordersupdate: [],
+                fills: []
             }
             if (Takertype == "LONG") {
                 for (const prices in obj.asks) {
@@ -384,6 +397,7 @@ function matchingengine(market: string, Takertype: string, Takerqty: number, Tak
                             let y = handlefillorder(obj.asks[prices], positions, Taker.engargs, balances, args)
                             Taker.engargs = y.engargs
                             Taker.ordersupdate = [...Taker.ordersupdate, ...y.ordersupdate]
+                            Taker.fills = [...Taker.fills, ...(y.fills || [])]
                         }
                         if (obj.asks[prices].availableQty == 0) {
                             delete obj.asks[prices]
@@ -422,6 +436,7 @@ function matchingengine(market: string, Takertype: string, Takerqty: number, Tak
                             let y = handlefillorder(obj.bids[prices], positions, Taker.engargs, balances, args)
                             Taker.engargs = y.engargs
                             Taker.ordersupdate = [...Taker.ordersupdate, ...y.ordersupdate]
+                            Taker.fills = [...Taker.fills, ...(y.fills || [])]
                         }
                         if (obj.bids[prices].availableQty == 0) {
                             delete obj.bids[prices]
@@ -450,7 +465,7 @@ function matchingengine(market: string, Takertype: string, Takerqty: number, Tak
             let yz: engineorder = { id: Takerorderid, filledQty: Taker.engargs.takerFilledQty.toString() }
             const updatedorders = [...Taker.ordersupdate, yz]
             const executionStatus = Taker.engargs.takerFilledQty > 0 || (!isMarket)
-            return { status: executionStatus, updatedorders }
+            return { status: executionStatus, updatedorders, fills: Taker.fills }
         }
     }
     return { status: false, updatedorders: [] }

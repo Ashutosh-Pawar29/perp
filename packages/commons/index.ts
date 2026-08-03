@@ -31,9 +31,20 @@ interface StreamData {
 
 export type StreamResponse = StreamData[];
 
+export interface FillRecord {
+    makerId: string;
+    takerId: string;
+    qty: string;
+    price: string;
+    makerOrderId: string;
+    takerOrderId: string;
+    marketId: string;
+}
+
 export interface retMatchingengine {
     engargs : matchingengineargs,
-    ordersupdate : engineorder[]
+    ordersupdate : engineorder[],
+    fills: FillRecord[]
 }
 
 export type Bid = {

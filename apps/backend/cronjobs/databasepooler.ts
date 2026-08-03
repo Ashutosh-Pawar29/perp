@@ -16,6 +16,10 @@ type RedisResponse = {
 async function main() {
     const client = createClient();
     await client.connect();
+
+    const pubClient = createClient();
+    await pubClient.connect();
+
     while (1) {
         let rawData = await client.xRead([{ key: "to-backend", id: "$" }], { COUNT: 1, BLOCK: 0 });
         if (!rawData || !Array.isArray(rawData) || rawData.length === 0) continue;
@@ -72,6 +76,55 @@ async function main() {
 
                 console.log("Updated order:", updatedOrder);
             }
+            let fillsToCreate = database_updates.fills || [];
+            for (let f of fillsToCreate) {
+                console.log("Creating fill record:", f);
+                try {
+                    await prisma.fill.create({
+                        data: {
+                            makerId: f.makerId,
+                            takerId: f.takerId,
+                            qty: f.qty,
+                            price: f.price,
+                            makerOrderId: f.makerOrderId,
+                            takerOrderId: f.takerOrderId,
+                            marketId: f.marketId
+                        }
+                    });
+
+                    // Publish trade event to Redis PubSub for WebSocket subscribers
+                    const tradePayload = JSON.stringify({
+                        type: "trade",
+                        market: f.marketId,
+                        price: f.price,
+                        qty: f.qty,
+                        makerId: f.makerId,
+                        takerId: f.takerId,
+                        makerOrderId: f.makerOrderId,
+                        takerOrderId: f.takerOrderId,
+                        timestamp: Date.now()
+                    });
+                    await pubClient.publish(f.marketId, tradePayload);
+                    await pubClient.publish(f.marketId.toLowerCase(), tradePayload);
+                } catch (err) {
+                    console.error("Failed to create fill record:", err);
+                }
+            }
+
+            // Publish orderbook snapshot to Redis PubSub if provided
+            let ob = database_updates.orderbook;
+            if (ob && ob.market) {
+                const obPayload = JSON.stringify({
+                    type: "orderbook",
+                    market: ob.market,
+                    bids: ob.bids,
+                    asks: ob.asks,
+                    lastTradedPrice: ob.lastTradedPrice,
+                    timestamp: Date.now()
+                });
+                await pubClient.publish(ob.market, obPayload);
+                await pubClient.publish(ob.market.toLowerCase(), obPayload);
+            }
         } else if (message.databaseQuery == "delete order") {
             if (!message.databaseData) continue;
             let data = JSON.parse(message.databaseData);
@@ -81,11 +134,22 @@ async function main() {
                     data: { status: "cancelled" }
                 });
             }
+            if (data.orderbook && data.orderbook.market) {
+                const ob = data.orderbook;
+                const obPayload = JSON.stringify({
+                    type: "orderbook",
+                    market: ob.market,
+                    bids: ob.bids,
+                    asks: ob.asks,
+                    lastTradedPrice: ob.lastTradedPrice,
+                    timestamp: Date.now()
+                });
+                await pubClient.publish(ob.market, obPayload);
+                await pubClient.publish(ob.market.toLowerCase(), obPayload);
+            }
         }
         // last_id = firstStream.messages[0]?.id as string
     }
 }
 
 main();
-
-
