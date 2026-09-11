@@ -69,7 +69,7 @@ Modern financial exchanges cannot afford synchronous disk database queries on th
 ## 📐 System Architecture
 
 <div align="center">
-  <img src="assets/architecture_diagram.png" alt="Perpetua Institutional Architecture" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin: 20px 0;" />
+  <img src="assets/architecture_diagram.svg" alt="Perpetua Institutional Architecture" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin: 20px 0;" />
 </div>
 
 <details>
