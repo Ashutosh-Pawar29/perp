@@ -1,4 +1,4 @@
-# ⚡ Perpetua (Perps V2) — Institutional-Grade Perpetual Futures DEX
+# ⚡ Perpetua (Perps V2) — Institutional-Grade Perpetual Futures Exchange (CLOB)
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![Bun](https://img.shields.io/badge/Bun-1.3-black.svg?style=flat-square&logo=bun)](https://bun.com/)
@@ -9,14 +9,14 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Prisma%20ORM-336791.svg?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
 [![TradingView](https://img.shields.io/badge/TradingView-Lightweight%20Charts%20v5-2962FF.svg?style=flat-square)](https://tradingview.github.io/lightweight-charts/)
 
-> **Perpetua** is a high-performance, low-latency decentralized perpetual futures exchange (Perp DEX) built with an in-memory matching engine, decoupled Redis Streams message broker, asynchronous PostgreSQL batch persistence, real-time candlestick aggregation, and an institutional trading interface.
+> **Perpetua** is a high-performance, low-latency Central Limit Order Book (CLOB) Perpetual Futures Exchange built with an in-memory matching engine, decoupled Redis Streams message broker, asynchronous PostgreSQL batch persistence, real-time candlestick aggregation, and an institutional trading interface.
 
 ---
 
 ## 📑 Table of Contents
 
 - [Architectural Overview](#-architectural-overview)
-- [System Architecture Flowchart](#-system-architecture-flowchart)
+- [System Architecture](#-system-architecture)
 - [Core Engine Mechanics](#-core-engine-mechanics)
   - [1. Numeric Order Matching](#1-numeric-order-matching)
   - [2. Margin, Leverage & Collateral](#2-margin-leverage--collateral)
@@ -35,7 +35,7 @@
 
 ## 🏛 Architectural Overview
 
-Modern financial exchanges cannot afford synchronous disk database queries on the order execution critical path. Perpetua adopts an **event-driven, decoupled memory architecture** inspired by institutional centralized exchanges (LMAX Disruptor pattern / Binance architecture) combined with decentralized transparency:
+Modern financial exchanges cannot afford synchronous disk database queries on the order execution critical path. Perpetua adopts an **event-driven, decoupled memory architecture** modeled after institutional centralized exchanges (e.g. Binance Futures, Bybit, LMAX Disruptor pattern):
 
 1. **In-Memory Matching Engine (`apps/backend/engine`)**:
    - Executes 100% in memory with zero database blocking.

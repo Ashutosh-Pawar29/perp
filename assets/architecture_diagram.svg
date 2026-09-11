@@ -107,7 +107,7 @@
     
     <!-- Title & Subtitle -->
     <text x="65" y="27" class="title" font-size="26">PERPETUA (PERPS V2) — SYSTEM ARCHITECTURE</text>
-    <text x="65" y="47" class="subtitle" font-size="14">Institutional Event-Driven Perpetual Futures DEX • Decoupled In-Memory Engine &amp; Asynchronous Persistence</text>
+    <text x="65" y="47" class="subtitle" font-size="14">Institutional Event-Driven Perpetual Futures Exchange (CLOB) • Decoupled In-Memory Engine &amp; Asynchronous Persistence</text>
 
     <!-- Badges on Right -->
     <g transform="translate(1330, 8)">
