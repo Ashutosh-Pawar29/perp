@@ -1,36 +1,23 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/create-next-app).
+# 🖥️ Perpetua Web — Trading Interface
 
-## Getting Started
+The frontend trading terminal for **Perpetua**, built with **React 19**, **Vite**, **TypeScript**, and **TradingView Lightweight Charts v5**.
 
-First, run the development server:
+## ✨ Features
+- **TradingView Lightweight Charts v5**: High-performance multi-timeframe candlestick charting with volume bars, live price crosshairs, and custom responsive zooming.
+- **Live L2 Orderbook**: Real-time bids and asks depth ladder with visual volume bars and sub-second WebSocket updates.
+- **Order Placement**: Market and Limit orders, Long and Short execution, configurable leverage slider (up to 50x / 100x), and real-time margin requirement calculator.
+- **Positions Dock**: Live open positions tracking unrealized PnL, entry price, liquidation price, margin allocation, and one-click market close.
+- **Open & Historical Orders**: Live view of resting limit orders with one-click cancellation.
+- **Deposit & Wallet**: Collateral on-ramp/off-ramp simulation and live balance updates.
+
+## 🚀 Running Locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# From repository root
+bun --filter web dev
+
+# Or directly in this directory
+bun run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load Inter, a custom Google Font.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The web app will run at `http://localhost:3001`.
