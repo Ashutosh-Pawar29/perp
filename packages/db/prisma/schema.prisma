@@ -83,3 +83,24 @@ enum Side{
   SHORT
   LONG
 }
+
+model EngineSnapshot {
+  id           String   @id @default(uuid())
+  lastStreamId String
+  data         String
+  createdAt    DateTime @default(now())
+}
+
+model Candle1m {
+  id        String   @id @default(uuid())
+  market    String
+  timestamp DateTime
+  open      Float
+  high      Float
+  low       Float
+  close     Float
+  volume    Float
+
+  @@unique([market, timestamp])
+  @@index([market, timestamp])
+}

@@ -1,15 +1,30 @@
 export type toEngine = {
     messageType: string,
     userId: string,
-    balance: string
-} | {
-    messageType: string,
-    userId: string,
-    body: string
+    balance?: string,
+    body?: string,
+    market?: string,
+    price?: string
 } | {
     messageType?: string,
     market: string,
     price: string
+}
+
+export interface EngineSnapshotData {
+    balances: Record<string, { available: string; locked: string }>;
+    positions: Users[];
+    orderbooks: Record<string, any>;
+    insuranceFund?: number;
+    timestamp: number;
+}
+
+export interface FundingPayment {
+    userId: string;
+    market: string;
+    positionType: string;
+    fundingRate: number;
+    payment: number;
 }
 
 

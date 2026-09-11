@@ -35,6 +35,11 @@ export function handleusersfilledqty(users: Users[], otherargs: Handleusersfille
     // will handle it when push to db
     //update users positions
     let positionhandled = false
+    let targetUser = users.find(u => u.userId == otherargs.userId);
+    if (!targetUser) {
+        targetUser = { userId: otherargs.userId, positions: [] };
+        users.push(targetUser);
+    }
     for (const user of users) {
         if (user.userId == otherargs.userId) {
             for (const position of user.positions) {
@@ -54,29 +59,24 @@ export function handleusersfilledqty(users: Users[], otherargs: Handleusersfille
                 else if (position.market === market && balance) {
                     let total_qty = position.qty - otherargs.filledqty
                     if (total_qty > 0) {
+                        const releasedMargin = (otherargs.filledqty / (position.qty || 1)) * position.margin
                         const realizedPnl = calculatereleazedpnl(price, position.averagePrice, otherargs.filledqty, position.type)
                         position.qty = total_qty
-                        position.margin -= marginchange
-                        balance.locked = String(Number(balance.locked) - marginchange)
-                        balance.available = String(Number(balance.available) + marginchange + realizedPnl)
+                        position.margin = Math.max(0, position.margin - releasedMargin)
+                        balance.locked = String(Math.max(0, Number(balance.locked) - releasedMargin))
+                        balance.available = String(Number(balance.available) + releasedMargin + realizedPnl)
                         balances.set(otherargs.userId, balance)
                         position.liquidationPrice = calculateLiquidationPrice(position.type, position.averagePrice, position.margin, position.qty)
                         positionhandled = true
                         break
                     }
                     else if (total_qty == 0) {
+                        const releasedMargin = position.margin
                         const realizedPnl = calculatereleazedpnl(price, position.averagePrice, otherargs.filledqty, position.type)
-                        balance.locked = String(Number(balance.locked) - marginchange)
-                        balance.available = String(Number(balance.available) + marginchange + realizedPnl)
+                        balance.locked = String(Math.max(0, Number(balance.locked) - releasedMargin))
+                        balance.available = String(Number(balance.available) + releasedMargin + realizedPnl)
                         balances.set(otherargs.userId, balance)
-                        // obj.poolfund -= (marginchange + realizedPnl)
-                        let new_positions: { market: string; type: string; qty: number; margin: number; liquidationPrice: number; pnL?: number | undefined; averagePrice: number; }[] = []
-                        for (const x of user.positions) {
-                            if (x == position) continue
-                            else {
-                                new_positions = [...new_positions, x]
-                            }
-                        }
+                        let new_positions = user.positions.filter(x => x !== position)
                         user.positions = new_positions
                         positionhandled = true
                         break
@@ -87,24 +87,19 @@ export function handleusersfilledqty(users: Users[], otherargs: Handleusersfille
                         let new_margin = (price * new_qty) / leverageNum
                         let liqPrice = calculateLiquidationPrice(ordertype, price, new_margin, new_qty)
                         let new_position = { market: position.market, type: ordertype, qty: new_qty, margin: new_margin, liquidationPrice: liqPrice, pnL: 0, averagePrice: price }
+                        const releasedMargin = position.margin
                         const realizedPnl = calculatereleazedpnl(price, position.averagePrice, position.qty, position.type)
-                        balance.locked = String(Number(balance.locked) - marginchange)
-                        balance.available = String(Number(balance.available) + marginchange + realizedPnl)
+                        balance.locked = String(Math.max(0, Number(balance.locked) - releasedMargin + new_margin))
+                        balance.available = String(Number(balance.available) + releasedMargin + realizedPnl - new_margin)
                         balances.set(otherargs.userId, balance)
-                        // obj.poolfund -= (position.margin + realizedPnl)
-                        let new_positions: { market: string; type: string; qty: number; margin: number; liquidationPrice: number; pnL?: number | undefined; averagePrice: number; }[] = []
-                        for (const x of user.positions) {
-                            if (x == position) continue
-                            else {
-                                new_positions = [...new_positions, x]
-                            }
-                        }
-                        new_positions = [...new_positions, new_position]
+                        let new_positions = user.positions.filter(x => x !== position)
+                        new_positions.push(new_position)
                         user.positions = new_positions
                         positionhandled = true
                         break
                     }
                 }
+
             }
 
             // if user does not hold any position in this market so we need to create a new position in his positions 

@@ -23,7 +23,12 @@ const pool = new pg.Pool({
 
 const adapter = new PrismaPg(pool);
 
+import * as Prisma from "./generated/prisma/internal/prismaNamespace";
+
 export const prisma = new PrismaClient({
   adapter,
 });
+
+export { Prisma };
+
 
