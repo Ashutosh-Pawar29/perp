@@ -12,7 +12,7 @@ export class PubsubManager {
     constructor() {
         this.subscribersByChannel = new Map<string, Set<string>>();
         this.handlersByChannel = new Map<string, Map<string, MessageHandler>>();
-        this.redisclient = createClient();
+        this.redisclient = createClient({ url: process.env.REDIS_URL || "redis://localhost:6379" });
     }
 
     static getInstance(): PubsubManager {

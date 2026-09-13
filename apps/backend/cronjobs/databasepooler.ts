@@ -15,10 +15,10 @@ type RedisResponse = {
 }[];
 
 async function main() {
-    const client = createClient();
+    const client = createClient({ url: process.env.REDIS_URL || "redis://localhost:6379" });
     await client.connect();
 
-    const pubClient = createClient();
+    const pubClient = createClient({ url: process.env.REDIS_URL || "redis://localhost:6379" });
     await pubClient.connect();
     await candleAggregator.init(pubClient);
 

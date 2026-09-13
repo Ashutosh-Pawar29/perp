@@ -5,10 +5,10 @@ import { handlefillorder } from "./fillorder";
 import { saveSnapshot, loadLatestSnapshot } from "./snapshot";
 import { applyFunding } from "./funding";
 
-const client = createClient();
+const client = createClient({ url: process.env.REDIS_URL || "redis://localhost:6379" });
 await client.connect()
 
-const publisher = createClient();
+const publisher = createClient({ url: process.env.REDIS_URL || "redis://localhost:6379" });
 await publisher.connect();
 const ENGINE_CONSUMER_GROUP = "engine";
 const ENGINE_CONSUMER_NAME = "engine-worker";

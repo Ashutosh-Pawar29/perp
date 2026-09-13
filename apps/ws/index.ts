@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { PubsubManager } from './sub';
 import { createClient } from 'redis';
 
-const redisReader = createClient();
+const redisReader = createClient({ url: process.env.REDIS_URL || "redis://localhost:6379" });
 redisReader.connect().catch((err) => console.error("Redis reader connect error in ws:", err));
 
 const wss = new WebSocketServer({ server: httpServer });

@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db-pooler
+  namespace: perpetua
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db-pooler
+  template:
+    metadata:
+      labels:
+        app: db-pooler
+    spec:
+      containers:
+        - name: db-pooler
+          image: ashutoshpawar29/perps-backend:v1
+          imagePullPolicy: IfNotPresent
+          command: ["bun", "run", "apps/backend/cronjobs/databasepooler.ts"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: perpetua-secret
+                  key: DATABASE_URL
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: perpetua-config
+                  key: REDIS_URL
+          resources:
+            requests:
+              cpu: "150m"
+              memory: "250Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

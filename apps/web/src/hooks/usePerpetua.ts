@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 
-export const API_BASE = "http://localhost:3000";
-export const WS_URL = "ws://localhost:3000";
+export const API_BASE = (import.meta as any).env?.VITE_API_URL || "http://localhost:3000";
+export const WS_URL = (import.meta as any).env?.VITE_WS_URL || "ws://localhost:3000";
 
 export interface Position {
   market: string;

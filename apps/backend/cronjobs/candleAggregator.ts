@@ -29,7 +29,7 @@ export class CandleAggregator {
         if (pubClient) {
             this.pubClient = pubClient;
         } else {
-            this.pubClient = createClient();
+            this.pubClient = createClient({ url: process.env.REDIS_URL || "redis://localhost:6379" });
             await this.pubClient.connect();
         }
 

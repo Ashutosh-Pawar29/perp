@@ -2,10 +2,10 @@
 import type { toEngine } from "commons";
 import { createClient } from "redis";
 
-const client = createClient(); 
+const client = createClient({ url: process.env.REDIS_URL || "redis://localhost:6379" }); 
 client.connect()
 
-const subscriber = createClient();
+const subscriber = createClient({ url: process.env.REDIS_URL || "redis://localhost:6379" });
 subscriber.connect();
 
 const BACKEND_CONSUMER_GROUP = "backend-" + Math.random();

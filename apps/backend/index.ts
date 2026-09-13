@@ -8,7 +8,7 @@ import { loopfunction } from "./loopingfunction";
 import type { toEngine } from "commons";
 import { createClient } from "redis";
 
-const redisClient = createClient();
+const redisClient = createClient({ url: process.env.REDIS_URL || "redis://localhost:6379" });
 redisClient.connect().catch((err) => console.error("Redis connect error in backend:", err));
 
 const jwt = require('jsonwebtoken')

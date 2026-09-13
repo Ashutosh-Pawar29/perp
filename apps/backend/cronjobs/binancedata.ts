@@ -23,7 +23,7 @@ type BINANCE_MARK_PRICE = {
 async function LiveDataFetch() {
     const url = "wss://fstream.binance.com/market/ws";
     const connection = new WebSocket(url);
-    const client = createClient()
+    const client = createClient({ url: process.env.REDIS_URL || "redis://localhost:6379" })
     await client.connect()
     connection.on("open", () => {
         console.log("Connected to Binance");

@@ -1,0 +1,24 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: prisma-db-migration
+  namespace: perpetua
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      name: prisma-db-push
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: prisma-migrate
+          image: ashutoshpawar29/perps-backend:v1
+          imagePullPolicy: IfNotPresent
+          workingDir: /app/packages/db
+          command: ["bunx", "prisma", "db", "push"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: perpetua-secret
+                  key: DATABASE_URL

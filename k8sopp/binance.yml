@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: binance
+  namespace: perpetua
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: binance
+  template:
+    metadata:
+      labels:
+        app: binance
+    spec:
+      containers:
+        - name: binance
+          image: ashutoshpawar29/perps-backend:v1
+          command: ["bun", "run", "apps/backend/cronjobs/binancedata.ts"]
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: perpetua-config
+                  key: REDIS_URL
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
