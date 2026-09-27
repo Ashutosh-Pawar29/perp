@@ -28,8 +28,8 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: ashutoshpawar29/perps-frontend:v1
-          imagePullPolicy: IfNotPresent
+          image: ashutoshpawar29/perps-frontend:v2
+          imagePullPolicy: Always
           ports:
             - containerPort: 80
               name: http

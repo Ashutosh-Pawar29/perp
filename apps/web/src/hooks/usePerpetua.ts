@@ -2,8 +2,55 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 
-export const API_BASE = (import.meta as any).env?.VITE_API_URL || "http://localhost:3000";
-export const WS_URL = (import.meta as any).env?.VITE_WS_URL || "ws://localhost:3000";
+function resolveApiBase(): string {
+  let url = (import.meta as any).env?.VITE_API_URL;
+  if (!url) {
+    if (typeof window !== "undefined") {
+      if (window.location.hostname.includes("perpetua.ashutoshpawar.in")) {
+        return "https://api.perpetua.ashutoshpawar.in";
+      }
+      return `${window.location.protocol}//${window.location.hostname}:3000`;
+    }
+    return "http://localhost:3000";
+  }
+
+  url = url.replace(/\/$/, "");
+  if (typeof window !== "undefined" && window.location.protocol === "https:") {
+    if (url.startsWith("http://")) {
+      url = url.replace(/^http:\/\//, "https://");
+    }
+  }
+  return url;
+}
+
+function resolveWsUrl(): string {
+  let url = (import.meta as any).env?.VITE_WS_URL;
+  if (!url) {
+    if (typeof window !== "undefined") {
+      const isHttps = window.location.protocol === "https:";
+      const protocol = isHttps ? "wss:" : "ws:";
+      if (window.location.hostname.includes("perpetua.ashutoshpawar.in")) {
+        return `${protocol}//api.perpetua.ashutoshpawar.in`;
+      }
+      return `${protocol}//${window.location.hostname}:3000`;
+    }
+    return "ws://localhost:3000";
+  }
+
+  if (typeof window !== "undefined" && window.location.protocol === "https:") {
+    if (url.startsWith("ws://")) {
+      url = url.replace(/^ws:\/\//, "wss://");
+    } else if (url.startsWith("http://")) {
+      url = url.replace(/^http:\/\//, "wss://");
+    } else if (url.startsWith("https://")) {
+      url = url.replace(/^https:\/\//, "wss://");
+    }
+  }
+  return url;
+}
+
+export const API_BASE = resolveApiBase();
+export const WS_URL = resolveWsUrl();
 
 export interface Position {
   market: string;

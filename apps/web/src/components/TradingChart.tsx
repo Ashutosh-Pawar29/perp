@@ -200,74 +200,82 @@ export const TradingChart: React.FC<TradingChartProps> = ({ market }) => {
       });
 
     // 5. WebSocket Live Kline & Trade Streaming
-    ws = new WebSocket(WS_URL);
-    ws.onopen = () => {
-      ws?.send(JSON.stringify({ type: "subscribe", market: `kline:${market}:1m` }));
-      ws?.send(JSON.stringify({ type: "subscribe", market: market }));
-    };
+    try {
+      ws = new WebSocket(WS_URL);
+      ws.onopen = () => {
+        ws?.send(JSON.stringify({ type: "subscribe", market: `kline:${market}:1m` }));
+        ws?.send(JSON.stringify({ type: "subscribe", market: market }));
+      };
 
-    ws.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data.toString());
-        if (payload.type === "message") {
-          const msg = payload.message;
+      ws.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data.toString());
+          if (payload.type === "message") {
+            const msg = payload.message;
 
-          // Live trade tick
-          if (msg.type === "trade" && seriesRef.current) {
-            const tradePrice = Number(msg.price);
-            const nowSeconds = Math.floor((msg.timestamp || Date.now()) / 1000);
-            const bucketSeconds =
-              activeInterval === "1m"
-                ? 60
-                : activeInterval === "5m"
-                ? 300
-                : activeInterval === "15m"
-                ? 900
-                : activeInterval === "1h"
-                ? 3600
-                : activeInterval === "4h"
-                ? 14400
-                : 86400;
-            const candleTime = Math.floor(nowSeconds / bucketSeconds) * bucketSeconds;
+            // Live trade tick
+            if (msg.type === "trade" && seriesRef.current) {
+              const tradePrice = Number(msg.price);
+              const nowSeconds = Math.floor((msg.timestamp || Date.now()) / 1000);
+              const bucketSeconds =
+                activeInterval === "1m"
+                  ? 60
+                  : activeInterval === "5m"
+                  ? 300
+                  : activeInterval === "15m"
+                  ? 900
+                  : activeInterval === "1h"
+                  ? 3600
+                  : activeInterval === "4h"
+                  ? 14400
+                  : 86400;
+              const candleTime = Math.floor(nowSeconds / bucketSeconds) * bucketSeconds;
 
-            if (lastBarRef.current && lastBarRef.current.time === candleTime) {
-              lastBarRef.current = {
-                time: candleTime,
-                open: lastBarRef.current.open,
-                high: Math.max(lastBarRef.current.high, tradePrice),
-                low: Math.min(lastBarRef.current.low, tradePrice),
-                close: tradePrice
-              };
-            } else {
-              lastBarRef.current = {
-                time: candleTime,
-                open: tradePrice,
-                high: tradePrice,
-                low: tradePrice,
-                close: tradePrice
-              };
+              if (lastBarRef.current && lastBarRef.current.time === candleTime) {
+                lastBarRef.current = {
+                  time: candleTime,
+                  open: lastBarRef.current.open,
+                  high: Math.max(lastBarRef.current.high, tradePrice),
+                  low: Math.min(lastBarRef.current.low, tradePrice),
+                  close: tradePrice
+                };
+              } else {
+                lastBarRef.current = {
+                  time: candleTime,
+                  open: tradePrice,
+                  high: tradePrice,
+                  low: tradePrice,
+                  close: tradePrice
+                };
+              }
+
+              try {
+                seriesRef.current.update(lastBarRef.current);
+              } catch {}
             }
 
-            try {
-              seriesRef.current.update(lastBarRef.current);
-            } catch {}
+            // Dedicated Kline Tick from aggregator
+            if (msg.type === "kline" && msg.candle && seriesRef.current) {
+              try {
+                seriesRef.current.update({
+                  time: Number(msg.candle.time),
+                  open: Number(msg.candle.open),
+                  high: Number(msg.candle.high),
+                  low: Number(msg.candle.low),
+                  close: Number(msg.candle.close)
+                });
+              } catch {}
+            }
           }
+        } catch {}
+      };
 
-          // Dedicated Kline Tick from aggregator
-          if (msg.type === "kline" && msg.candle && seriesRef.current) {
-            try {
-              seriesRef.current.update({
-                time: Number(msg.candle.time),
-                open: Number(msg.candle.open),
-                high: Number(msg.candle.high),
-                low: Number(msg.candle.low),
-                close: Number(msg.candle.close)
-              });
-            } catch {}
-          }
-        }
-      } catch {}
-    };
+      ws.onerror = (err) => {
+        console.warn("[Chart WS] Connection error:", err);
+      };
+    } catch (err) {
+      console.warn("[Chart WS] Failed to construct WebSocket:", err);
+    }
 
     return () => {
       isCancelled = true;

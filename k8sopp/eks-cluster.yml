@@ -1,0 +1,30 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: perpetua-cluster
+  region: ap-south-1
+  version: "1.32"
+
+vpc:
+  nat:
+    gateway: Disable
+
+managedNodeGroups:
+  - name: perpetua-spot
+    spot: true
+    instanceTypes:
+      - c7i-flex.large
+      - c6i.large
+      - c7a.large
+    desiredCapacity: 1
+    minSize: 1
+    maxSize: 1
+    volumeSize: 30
+    volumeType: gp3
+    ssh:
+      allow: false
+    labels:
+      role: workload
+    tags:
+      project: perpetua

@@ -1,0 +1,26 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: perpetua-cluster
+  region: ap-south-1
+
+managedNodeGroups:
+  - name: perpetua-spot
+    spot: true
+    instanceTypes:
+      - c7i-flex.large
+      - c6i.large
+    desiredCapacity: 1
+    minSize: 1
+    maxSize: 1
+    volumeSize: 30
+    volumeType: gp3
+    labels:
+      role: workload
+    tags:
+      project: perpetua
+    subnets:
+      - subnet-0212600433acd2f78
+      - subnet-0ee3e79dbc3b63adc
+      - subnet-02e55f5eadca64327
